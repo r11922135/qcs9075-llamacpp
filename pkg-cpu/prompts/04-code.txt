@@ -1,0 +1,1 @@
+寫一個 Python 函式 is_valid_utf8(data: bytes) -> bool,不要用 decode(),自己依照 UTF-8 的規則逐位元組檢查。附上三個測試案例,其中一個是 Big5 編碼的「請」(0xBD 0xD0)。說明請用繁體中文。

@@ -91,7 +91,9 @@ Write-Host ''
 # ---------------------------------------------------------------------------
 $bins = @(Get-ChildItem (Join-Path $PkgDir 'bin') -File -ErrorAction SilentlyContinue)
 if ($bins.Count -lt 4) { Die "找不到 $PkgDir\bin 的執行檔。先 git pull(執行檔是伺服器用 host/build-cpu.sh 編好 commit 進來的)。" }
-$scripts = @(Get-ChildItem $PkgDir -File)
+# bin/ 以外的都是文字檔(腳本、VERSION、prompts/*.txt)
+$binDir  = Join-Path $PkgDir 'bin'
+$scripts = @(Get-ChildItem $PkgDir -File -Recurse | Where-Object { $_.DirectoryName -ne $binDir })
 Ok "本機 llama.cpp:$((Get-Content (Join-Path $PkgDir 'VERSION') -TotalCount 1))"
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
@@ -106,7 +108,7 @@ Ok "板子已連線:$(($devs[0] -split "`t")[0])"
 # ---------------------------------------------------------------------------
 # 1. 推 llama.cpp 與腳本(不到 50 MB,每次都推,省得比對)
 # ---------------------------------------------------------------------------
-AdbShell "mkdir -p $Dest/bin $Dest/models $Dest/results" | Out-Null
+AdbShell "mkdir -p $Dest/bin $Dest/models $Dest/results $Dest/prompts" | Out-Null
 
 foreach ($b in $bins) {
     AdbRaw @('push', (Quote $b.FullName), "$Dest/bin/$($b.Name)") | Out-Null
@@ -118,10 +120,11 @@ AdbShell "chmod 755 $Dest/bin/*" | Out-Null
 # .sh 若被 Windows 的 git 轉成 CRLF,板上的 sh 會跑不動;推之前一律轉回 LF。
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 foreach ($f in $scripts) {
+    $rel = $f.FullName.Substring($PkgDir.Length + 1) -replace '\\', '/'
     $tmp = Join-Path $env:TEMP $f.Name
     [IO.File]::WriteAllText($tmp, ([IO.File]::ReadAllText($f.FullName) -replace "`r`n", "`n"), $utf8NoBom)
-    AdbRaw @('push', (Quote $tmp), "$Dest/$($f.Name)") | Out-Null
-    if ($script:AdbExit -ne 0) { Die "push $($f.Name) 失敗" }
+    AdbRaw @('push', (Quote $tmp), "$Dest/$rel") | Out-Null
+    if ($script:AdbExit -ne 0) { Die "push $rel 失敗" }
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
 }
 Ok "llama.cpp 與腳本已推到 $Dest($($bins.Count) 個執行檔、$($scripts.Count) 個檔案)"
@@ -172,8 +175,7 @@ if ($Bench) {
 Write-Host ''
 Ok '完成'
 if ($Wanted.Count -gt 0) {
-    $f = $Wanted[0].File
     Write-Host ''
-    Write-Host '實際問答(adb shell 裡貼上;-rea off 關掉思考模式):' -ForegroundColor White
-    Write-Host "  cd $Dest && echo `$`$ > /sys/fs/cgroup/cgroup.procs && ./bin/llama-cli -m models/$f -t 8 -st -rea off -n 256 -p '請用繁體中文三句話解釋什麼是 MoE 架構'"
+    Write-Host '確認輸出品質(問 prompts/ 裡的題目;中文題目在檔案裡,不要在 adb shell 直接打中文):' -ForegroundColor White
+    foreach ($m in $Wanted) { Write-Host "  adb shell sh $Dest/ask.sh $($m.Key)" }
 }

@@ -97,6 +97,7 @@ for t in $TARGETS; do
 done
 "$TOOLDIR/strip" "$PKG"/bin/*
 cp "$TOP"/device/*.sh "$PKG/"
+cp -r "$TOP/device/prompts" "$PKG/"
 git -C "$SRC" log -1 --format='llama.cpp %H %cd' --date=short > "$PKG/VERSION"
 printf 'march %s\n' "$ARM_ARCH" >> "$PKG/VERSION"
 

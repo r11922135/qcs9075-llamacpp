@@ -32,7 +32,8 @@
 
 ### 還沒驗證
 
-- [ ] 輸出品質:bench 只量速度,輸出壞掉也照樣有數字。要用 llama-cli 實際問答確認。
+- [ ] 輸出品質:bench 只量速度,輸出壞掉也照樣有數字。要用 `ask.sh` 實際問答確認。
+  (第一次試的時候直接在 adb shell 打中文,Big5 位元組讓 llama-cli terminate —— 是輸入編碼問題,不是模型問題。)
 - [ ] 記憶體峰值:llama-bench 不報 RSS。
 
 ## Qwen3.5-9B Q4_0

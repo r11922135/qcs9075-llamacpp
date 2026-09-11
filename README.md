@@ -193,11 +193,20 @@ nohup sh /opt/llamacpp/fetch-model.sh 35b > /opt/llamacpp/fetch-35b.log 2>&1 &
 
 之後用 `tail -c 300 /opt/llamacpp/fetch-35b.log` 看進度。
 
-再做一次實際問答,確認輸出正常(adb shell;`-rea off` 關掉思考模式,只看速度與是否正常):
+再確認輸出品質 —— 拿 `device/prompts/` 的四題(zh-TW 解釋、算術、Linux、寫程式)實際問(Windows PowerShell):
 
-```sh
-cd /opt/llamacpp && echo $$ > /sys/fs/cgroup/cgroup.procs && ./bin/llama-cli -m models/Qwen_Qwen3.5-9B-Q4_0.gguf -t 8 -st -rea off -n 256 -p "請用繁體中文三句話解釋什麼是 MoE 架構"
+```powershell
+adb shell sh /opt/llamacpp/ask.sh 9b
+adb shell sh /opt/llamacpp/ask.sh 35b
 ```
+
+回答存在板上 `/opt/llamacpp/results/ask-<模型>-<時間>.txt`,結尾有實際對話的 `[ Prompt / Generation t/s ]`。
+預設 `-rea off`(不思考)、`--seed 42`;想看思考模式:`adb shell sh /opt/llamacpp/ask.sh 35b prompts/02-math.txt -rea on`。
+
+⚠ **不要在 adb shell 裡直接打中文 prompt。** Windows console 送上板的是 **Big5**,
+llama-cli 遇到不合法的 UTF-8 會直接 `terminate ... common_json_error ... invalid UTF-8 byte at index 0: 0xBD`
+(2026-09-11 實際踩到:`0xBD 0xD0 0xA5 0xCE 0xC1 0x63` 正是「請用繁」的 Big5)。
+輸出方向沒問題(UTF-8 顯示正常),只有輸入會壞。中文題目一律寫成 UTF-8 檔放 `device/prompts/`,跟著 push.bat 推上去。
 
 9B 過關後換 35B:`.\push.bat -Model 35b -Bench`(20.84 GB,下載與推送都要一段時間,中斷重跑即可續傳)。
 不帶 `-Bench` 就只部署不跑。
@@ -265,7 +274,9 @@ qcs9075-llamacpp/
 │   └── build-cpu.sh     伺服器端:交叉編譯 CPU 版 llama.cpp → pkg-cpu/
 ├── device/
 │   ├── bench.sh         板端:escape URM 後跑 llama-bench(4 核、8 核)
-│   └── fetch-model.sh   板端:從 HF 下載 GGUF(續傳、sha256 驗證)
+│   ├── fetch-model.sh   板端:從 HF 下載 GGUF(續傳、sha256 驗證)
+│   ├── ask.sh           板端:拿 prompts/ 的題目實際問模型,確認輸出品質
+│   └── prompts/         UTF-8 測試題目(中文題目只能放這裡,見 M1 的 Big5 說明)
 ├── pkg-cpu/             要推上板的東西:bin/ + device/*.sh + VERSION(進 git)
 ├── results/             llama-bench 輸出與比較表
 ├── llama.cpp/           上游原始碼(git clone --depth 1,不進 git)

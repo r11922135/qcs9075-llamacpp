@@ -4,8 +4,9 @@
 *.bat whitespace=cr-at-eol
 *.bat -text
 
-# 板上的 sh 遇到 CRLF 會跑不動;Windows checkout 也保持 LF。
+# 板上的 sh 遇到 CRLF 會跑不動;Windows checkout 也保持 LF。prompts 同理(\r 會混進題目)。
 *.sh text eol=lf
+*.txt text eol=lf
 
 # 伺服器編好的 aarch64 執行檔
 pkg-cpu/bin/* binary
