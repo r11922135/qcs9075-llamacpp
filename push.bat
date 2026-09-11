@@ -5,12 +5,12 @@ REM  push.bat - deploy llama.cpp (CPU build) and GGUF models to the QCS9075.
 REM  Thin wrapper around push.ps1; all the logic lives there.
 REM
 REM  Double-click it, or pass options through:
-REM      push.bat                 llama.cpp + Qwen3.5-9B Q4_0 (5.7 GB)
-REM      push.bat -Model 35b      llama.cpp + Qwen3.6-35B-A3B Q4_0 (20.8 GB)
-REM      push.bat -Model both
-REM      push.bat -Model none     only update llama.cpp and scripts
-REM      push.bat -Bench          push, then run bench.sh on the board
-REM  Flags combine:  push.bat -Model 35b -Bench
+REM      .\push.bat                 llama.cpp + Qwen3.5-9B Q4_0 (5.7 GB)
+REM      .\push.bat -Model 35b      llama.cpp + Qwen3.6-35B-A3B Q4_0 (20.8 GB)
+REM      .\push.bat -Model both
+REM      .\push.bat -Model none     only update llama.cpp and scripts
+REM      .\push.bat -Bench          push, then run bench.sh on the board
+REM  Flags combine:  .\push.bat -Model 35b -Bench
 REM
 REM  The board downloads the models itself (it needs Wi-Fi), so nothing
 REM  large is stored on this PC.

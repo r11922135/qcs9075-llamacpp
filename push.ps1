@@ -5,12 +5,12 @@
 #   不佔 Windows 空間,板子要能上網(WiFi)。
 #   板子重燒 image 後要重跑一次(/opt 在 rootfs 上,會被清掉)。
 #
-#   用法(或直接點兩下 push.bat,參數一樣):
-#       push.bat                   # llama.cpp + Qwen3.5-9B Q4_0(5.74 GB)
-#       push.bat -Model 35b        # llama.cpp + Qwen3.6-35B-A3B Q4_0(20.84 GB)
-#       push.bat -Model both
-#       push.bat -Model none       # 只更新 llama.cpp 與腳本
-#       push.bat -Bench            # 推完直接跑 bench.sh(會暫停 spirit 服務,跑完恢復)
+#   用法(PowerShell 不會執行目前資料夾的指令,要加 .\ 前綴;或直接點兩下 push.bat):
+#       .\push.bat                   # llama.cpp + Qwen3.5-9B Q4_0(5.74 GB)
+#       .\push.bat -Model 35b        # llama.cpp + Qwen3.6-35B-A3B Q4_0(20.84 GB)
+#       .\push.bat -Model both
+#       .\push.bat -Model none       # 只更新 llama.cpp 與腳本
+#       .\push.bat -Bench            # 推完直接跑 bench.sh(會暫停 spirit 服務,跑完恢復)
 #
 #   中斷了直接重跑:板上的下載會續傳,已經完整的模型會跳過。
 # =============================================================================

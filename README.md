@@ -172,9 +172,12 @@ systemctl list-units --type=service --state=running | grep -iE 'geniex|spirit|vl
 
 **送上板並跑 bench(Windows,git pull 之後):**
 
-```bat
-push.bat -Bench
+```powershell
+.\push.bat -Bench
 ```
+
+(PowerShell 不會執行目前資料夾裡的指令,一定要加 `.\`;也可以直接點兩下 `push.bat`。
+從 PowerShell 跑完會停在 cmd 提示字元 —— 那是讓雙擊時視窗不會閃退的 `cmd /k`,打 `exit` 回到 PowerShell。)
 
 push.ps1 會依序:推 llama.cpp 與腳本到 `/opt/llamacpp` → **板子自己**從 HF 下載 9B
 (`fetch-model.sh`,已完整就跳過)→ 暫停原本在跑的 spirit 服務 → `bench.sh` → 恢復服務。
@@ -196,12 +199,26 @@ nohup sh /opt/llamacpp/fetch-model.sh 35b > /opt/llamacpp/fetch-35b.log 2>&1 &
 cd /opt/llamacpp && echo $$ > /sys/fs/cgroup/cgroup.procs && ./bin/llama-cli -m models/Qwen_Qwen3.5-9B-Q4_0.gguf -t 8 -st -rea off -n 256 -p "請用繁體中文三句話解釋什麼是 MoE 架構"
 ```
 
-9B 過關後換 35B:`push.bat -Model 35b -Bench`(20.84 GB,下載與推送都要一段時間,中斷重跑即可續傳)。
+9B 過關後換 35B:`.\push.bat -Model 35b -Bench`(20.84 GB,下載與推送都要一段時間,中斷重跑即可續傳)。
 不帶 `-Bench` 就只部署不跑。
 
 記錄:pp512 / tg128 tok/s(4 核、8 核)、MemAvailable、輸出是否正常。
 
 過關條件:載得起來、輸出正常、tg 有數字。
+
+**結果(2026-09-11)** —— 詳見 [`results/m1-cpu-baseline.md`](results/m1-cpu-baseline.md)
+
+| 模型 | 8 核 pp512 | 8 核 tg128 | 4 核 pp512 | 4 核 tg128 |
+|---|---|---|---|---|
+| Qwen3.6-35B-A3B Q4_0 | 55.28 | **12.32** | 27.34 | 10.02 |
+| Qwen3.5-9B Q4_0 | 待測 | 待測 | 待測 | 待測 |
+
+- [x] 35B 載入、下載 + sha256、glibc 2.43、URM escape(`cpus: 0-7`)全部通過
+- [ ] 35B 輸出品質(llama-cli 實際問答)
+- [ ] 9B 對照組
+
+後續可試(CPU 就能做):35B 的 repo 附有 MTP 草稿檔 `mtp-Qwen_Qwen3.6-35B-A3B-Q4_0.gguf`(1.19 GB),
+這版 llama-cli / llama-server 支援 `--spec-type draft-mtp -md <檔案>`,有機會再拉高生成速度(llama-bench 不支援,要用 llama-cli 量)。
 
 ### M2 Hexagon NPU offload
 
