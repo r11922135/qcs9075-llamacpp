@@ -1,0 +1,11 @@
+# push.bat 必須是 CRLF、push.ps1 是 UTF-8 BOM:照原樣存,不讓 git 轉換。
+*.ps1 whitespace=cr-at-eol
+*.ps1 -text
+*.bat whitespace=cr-at-eol
+*.bat -text
+
+# 板上的 sh 遇到 CRLF 會跑不動;Windows checkout 也保持 LF。
+*.sh text eol=lf
+
+# 伺服器編好的 aarch64 執行檔
+pkg-cpu/bin/* binary
