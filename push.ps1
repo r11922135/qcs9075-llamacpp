@@ -1,7 +1,8 @@
 ﻿# =============================================================================
 # push.ps1 — 把 llama.cpp(CPU 版)與 GGUF 模型部署到 QCS9075 板子
 #
-#   只要 adb 在 PATH 上。模型在 Windows 這邊下載(curl.exe,可續傳),不經過伺服器。
+#   只要 adb 在 PATH 上。模型由板子自己從 Hugging Face 下載(device/fetch-model.sh),
+#   不佔 Windows 空間,板子要能上網(WiFi)。
 #   板子重燒 image 後要重跑一次(/opt 在 rootfs 上,會被清掉)。
 #
 #   用法(或直接點兩下 push.bat,參數一樣):
@@ -10,15 +11,13 @@
 #       push.bat -Model both
 #       push.bat -Model none       # 只更新 llama.cpp 與腳本
 #       push.bat -Bench            # 推完直接跑 bench.sh(會暫停 spirit 服務,跑完恢復)
-#       push.bat -Force            # 板上模型大小一致也重推
 #
-#   中斷了直接重跑:下載會續傳,板上大小一致的模型會跳過。
+#   中斷了直接重跑:板上的下載會續傳,已經完整的模型會跳過。
 # =============================================================================
 param(
     [ValidateSet('9b', '35b', 'both', 'none')]
     [string]$Model = '9b',
     [switch]$Bench,
-    [switch]$Force,
     [string]$Dest = '/opt/llamacpp'
 )
 
@@ -27,14 +26,13 @@ $ErrorActionPreference = 'Stop'
 # 板端腳本用繁中輸出;不把 console 切到 UTF-8,Write-Host 出來會是亂碼。
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 
-$Here     = $PSScriptRoot
-$PkgDir   = Join-Path $Here 'pkg-cpu'
-$ModelDir = Join-Path $Here 'models'
+$Here   = $PSScriptRoot
+$PkgDir = Join-Path $Here 'pkg-cpu'
 
-# 大小取自 HF API(2026-09-11),用來判斷下載與推送是否完整。
+# 下載來源、大小、sha256 都在 device/fetch-model.sh;這裡只需要檔名給 bench 用。
 $Catalog = @{
-    '9b'  = [pscustomobject]@{ Repo = 'bartowski/Qwen_Qwen3.5-9B-GGUF';      File = 'Qwen_Qwen3.5-9B-Q4_0.gguf';      Size = [int64]5741391904 }
-    '35b' = [pscustomobject]@{ Repo = 'bartowski/Qwen_Qwen3.6-35B-A3B-GGUF'; File = 'Qwen_Qwen3.6-35B-A3B-Q4_0.gguf'; Size = [int64]20836243072 }
+    '9b'  = [pscustomobject]@{ Key = '9b';  File = 'Qwen_Qwen3.5-9B-Q4_0.gguf' }
+    '35b' = [pscustomobject]@{ Key = '35b'; File = 'Qwen_Qwen3.6-35B-A3B-Q4_0.gguf' }
 }
 # 外層 @() 一定要包:只選一顆時 switch 回傳的是純量,
 # 而 PS 5.1 的 [pscustomobject] 沒有 .Count,後面的判斷會失準。
@@ -106,33 +104,7 @@ if ($devs.Count -gt 1) { Warn "接了多台裝置,adb 會用預設那台:$($devs
 Ok "板子已連線:$(($devs[0] -split "`t")[0])"
 
 # ---------------------------------------------------------------------------
-# 1. 下載模型(本機大小一致就跳過)
-# ---------------------------------------------------------------------------
-if ($Wanted.Count -gt 0) {
-    if (-not (Test-Path $ModelDir)) { New-Item -ItemType Directory -Path $ModelDir -Force | Out-Null }
-    foreach ($m in $Wanted) {
-        $local = Join-Path $ModelDir $m.File
-        if ((Test-Path $local) -and (Get-Item $local).Length -eq $m.Size) {
-            Ok "本機已有 $($m.File)"
-            continue
-        }
-        if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
-            Die '找不到 curl.exe(Windows 10 1803 以後內建)。'
-        }
-        $url = "https://huggingface.co/$($m.Repo)/resolve/main/$($m.File)"
-        Info ("下載 {0}({1:N2} GB,中斷後重跑會續傳)" -f $m.File, ($m.Size / 1e9))
-        Info $url
-        # -C - 續傳;--fail 讓 HTTP 錯誤變成非零離開碼,而不是把錯誤頁存成 .gguf
-        & curl.exe -L --fail -C - -o $local $url
-        if ($LASTEXITCODE -ne 0) { Die "下載失敗(curl 離開碼 $LASTEXITCODE)。重跑一次會從中斷點續傳。" }
-        $got = (Get-Item $local).Length
-        if ($got -ne $m.Size) { Die "下載後大小不符:$got,應為 $($m.Size)。重跑會續傳;一直不符就刪掉 $local 重下。" }
-        Ok "下載完成:$($m.File)"
-    }
-}
-
-# ---------------------------------------------------------------------------
-# 2. 推 llama.cpp 與腳本(不到 50 MB,每次都推,省得比對)
+# 1. 推 llama.cpp 與腳本(不到 50 MB,每次都推,省得比對)
 # ---------------------------------------------------------------------------
 AdbShell "mkdir -p $Dest/bin $Dest/models $Dest/results" | Out-Null
 
@@ -155,28 +127,19 @@ foreach ($f in $scripts) {
 Ok "llama.cpp 與腳本已推到 $Dest($($bins.Count) 個執行檔、$($scripts.Count) 個檔案)"
 
 # ---------------------------------------------------------------------------
-# 3. 推模型(板上大小一致就跳過,所以中斷後重跑等於續推)
+# 2. 板子自己下載模型(已完整就跳過;中斷後重跑會續傳)
 # ---------------------------------------------------------------------------
+# 關掉這個視窗會連帶中斷板上的下載,重跑 push.bat 即可續傳。
 foreach ($m in $Wanted) {
-    $dst = "$Dest/models/$($m.File)"
-    $remoteSize = AdbShell "stat -c %s $dst 2>/dev/null"
-    if ((-not $Force) -and $remoteSize -eq "$($m.Size)") {
-        Ok "板上已有 $($m.File),跳過"
-        continue
+    Write-Host ''
+    Info "板上下載 $($m.File)"
+    if ((AdbLive @('shell', "sh $Dest/fetch-model.sh $($m.Key)")) -ne 0) {
+        Die '板上下載沒完成(原因看上面)。重跑 push.bat 會從中斷點續傳。'
     }
-    $availKb = AdbShell "df -Pk $Dest | awk 'NR==2{print `$4}'"
-    if ($availKb -match '^\d+$' -and ([int64]$availKb * 1KB) -lt ($m.Size + 512MB)) {
-        Die ("板上空間不足:{0} 只剩 {1:N1} GB,{2} 要 {3:N2} GB" -f $Dest, ([int64]$availKb * 1KB / 1e9), $m.File, ($m.Size / 1e9))
-    }
-    Info ("推 {0} 到板上({1:N2} GB,會花一段時間)..." -f $m.File, ($m.Size / 1e9))
-    if ((AdbLive @('push', (Quote (Join-Path $ModelDir $m.File)), $dst)) -ne 0) { Die "push $($m.File) 失敗,重跑一次即可" }
-    $remoteSize = AdbShell "stat -c %s $dst 2>/dev/null"
-    if ($remoteSize -ne "$($m.Size)") { Die "板上 $($m.File) 大小不符($remoteSize),重跑一次" }
-    Ok "板上模型就緒:$dst"
 }
 
 # ---------------------------------------------------------------------------
-# 4.(選用)跑 bench.sh
+# 3.(選用)跑 bench.sh
 # ---------------------------------------------------------------------------
 if ($Bench) {
     if ($Wanted.Count -eq 0) { Die '-Bench 需要搭配 -Model 9b / 35b / both' }
@@ -204,7 +167,7 @@ if ($Bench) {
 }
 
 # ---------------------------------------------------------------------------
-# 5. 接下來
+# 4. 接下來
 # ---------------------------------------------------------------------------
 Write-Host ''
 Ok '完成'

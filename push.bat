@@ -10,8 +10,10 @@ REM      push.bat -Model 35b      llama.cpp + Qwen3.6-35B-A3B Q4_0 (20.8 GB)
 REM      push.bat -Model both
 REM      push.bat -Model none     only update llama.cpp and scripts
 REM      push.bat -Bench          push, then run bench.sh on the board
-REM      push.bat -Force          re-push the model even if the size matches
 REM  Flags combine:  push.bat -Model 35b -Bench
+REM
+REM  The board downloads the models itself (it needs Wi-Fi), so nothing
+REM  large is stored on this PC.
 REM
 REM  This file is deliberately pure ASCII with CRLF line endings. On a
 REM  Traditional Chinese Windows the console reads it as cp950, and UTF-8
@@ -21,7 +23,7 @@ REM ===========================================================================
 setlocal
 cd /d "%~dp0"
 
-echo push.bat for qcs9075-llamacpp (v1, 2026-09-11)
+echo push.bat for qcs9075-llamacpp (v2, 2026-09-11)
 echo.
 
 REM Board-side scripts print UTF-8; without this the console shows mojibake.

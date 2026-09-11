@@ -131,8 +131,9 @@ HTP 沒有 K-quant kernel;而且我們本來就需要自己挑量化格式。直
 - 兩個 repo 都有 `mmproj-*-f16.gguf`(約 0.9 GB)可以看圖。**第一階段只做純文字。**
 - 35B 的 repo 另有 `mtp-Qwen_Qwen3.6-35B-A3B-Q4_0.gguf`(1.19 GB),是 MTP 草稿模型,
   可用 `--spec-type draft-mtp` 做 speculative decoding 加速 —— 留到 M3 之後再試。
-- **模型不經過伺服器**:照 `qwen3vl-genie/push.ps1` 的做法,在 Windows 用 `curl.exe -C -` 下載(可續傳),
-  再 `adb push`。伺服器磁碟已經 98% 滿,而且伺服器到 Windows 本來就只靠 git,21 GB 走不了。
+- **模型由板子自己下載**(`device/fetch-model.sh`):伺服器磁碟 98% 滿、Windows 空間也不夠,
+  板子 `/` 還有 164 GB。板子有 WiFi,`qwen3vl-genie/device/fetch-speech.sh` 就是這樣在板上抓 huggingface 的。
+  腳本會先確認連得到 huggingface.co、空間夠,下載可續傳,完成後比對大小與 sha256(取自 HF API)。
 
 ---
 
@@ -175,9 +176,19 @@ systemctl list-units --type=service --state=running | grep -iE 'geniex|spirit|vl
 push.bat -Bench
 ```
 
-push.ps1 會依序:在 Windows 下載 9B(`models\`,可續傳)→ 推 llama.cpp 與腳本到 `/opt/llamacpp`
-→ 推模型(板上大小一致就跳過)→ 暫停原本在跑的 spirit 服務 → `bench.sh` → 恢復服務。
-結果存在板上 `/opt/llamacpp/results/`。
+push.ps1 會依序:推 llama.cpp 與腳本到 `/opt/llamacpp` → **板子自己**從 HF 下載 9B
+(`fetch-model.sh`,已完整就跳過)→ 暫停原本在跑的 spirit 服務 → `bench.sh` → 恢復服務。
+結果存在板上 `/opt/llamacpp/results/`。Windows 端不存任何模型。
+
+板子要先連上網路(WiFi:`nmcli device wifi connect <SSID> password <密碼>`)。
+關掉 push.bat 視窗會連帶中斷板上的下載,重跑即可續傳。
+35B 要下載很久、又不想一直開著視窗的話,可以在 adb shell 裡讓它在背景跑:
+
+```sh
+nohup sh /opt/llamacpp/fetch-model.sh 35b > /opt/llamacpp/fetch-35b.log 2>&1 &
+```
+
+之後用 `tail -c 300 /opt/llamacpp/fetch-35b.log` 看進度。
 
 再做一次實際問答,確認輸出正常(adb shell;`-rea off` 關掉思考模式,只看速度與是否正常):
 
@@ -213,7 +224,8 @@ cd /opt/llamacpp && echo $$ > /sys/fs/cgroup/cgroup.procs && ./bin/llama-cli -m 
 1. **伺服器 docker 沒權限**:`permission denied ... /var/run/docker.sock`(patrick 不在 docker group)。
    CPU 版已經繞開(`host/build-cpu.sh`,Yocto 工具鏈,cmake 用 Yocto 的 cmake-native);
    **NPU 版一定要 Hexagon SDK**,上游只提供 docker 映像 → M2 開始前要請管理員加群組。
-2. **伺服器磁碟剩 92 GB(98%)**:模型改成 Windows 直接下載,不經過伺服器;**不要**抓 BF16(69 GB)回來自己量化。
+2. **伺服器磁碟剩 92 GB(98%)、Windows 空間也不夠**:模型由板子直接下載,不經過兩者;
+   **不要**抓 BF16(69 GB)回來自己量化。板子連不上 HF 的話(WiFi 沒連、要 proxy),`fetch-model.sh` 第一步就會停下來。
 3. **板上記憶體**:35B 約 21 GiB,兩個 spirit 服務開著時還剩約 8 GiB。測試時建議停掉。
    模型不要放 `/tmp`(tmpfs,吃 RAM)。
 4. **板上 glibc 版本未確認**:執行檔要 GLIBC_2.43。太舊的話改成全靜態連結(`-static`)再編一次。
@@ -231,14 +243,14 @@ cd /opt/llamacpp && echo $$ > /sys/fs/cgroup/cgroup.procs && ./bin/llama-cli -m 
 ```
 qcs9075-llamacpp/
 ├── README.md
-├── push.bat / push.ps1  Windows 端:下載模型、部署到板子、(選用)跑 bench
+├── push.bat / push.ps1  Windows 端:部署到板子、叫板子下載模型、(選用)跑 bench
 ├── host/
 │   └── build-cpu.sh     伺服器端:交叉編譯 CPU 版 llama.cpp → pkg-cpu/
 ├── device/
-│   └── bench.sh         板端:escape URM 後跑 llama-bench(4 核、8 核)
-├── pkg-cpu/             要推上板的東西:bin/ + bench.sh + VERSION(進 git)
+│   ├── bench.sh         板端:escape URM 後跑 llama-bench(4 核、8 核)
+│   └── fetch-model.sh   板端:從 HF 下載 GGUF(續傳、sha256 驗證)
+├── pkg-cpu/             要推上板的東西:bin/ + device/*.sh + VERSION(進 git)
 ├── results/             llama-bench 輸出與比較表
-├── models/              Windows 端下載的 GGUF(不進 git)
 ├── llama.cpp/           上游原始碼(git clone --depth 1,不進 git)
 └── build-cpu/           建置目錄(不進 git)
 ```

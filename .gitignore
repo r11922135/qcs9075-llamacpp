@@ -1,6 +1,5 @@
-# 模型檔不進 git:Windows 端由 push.ps1 下載到 models/
+# 模型檔不進 git:板子用 device/fetch-model.sh 自己下載
 *.gguf
-models/
 
 # llama.cpp 原始碼 checkout 與建置目錄
 llama.cpp/
