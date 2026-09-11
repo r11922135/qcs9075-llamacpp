@@ -32,7 +32,10 @@ out="results/$(basename "$MODEL" .gguf)-$(date +%Y%m%d-%H%M%S).md"
 # 但 URM 會在程序閒著時把它搬回去,所以要緊貼著 fork llama-bench 之前做。
 echo $$ > /sys/fs/cgroup/cgroup.procs
 printf 'cpus: %s\n' "$(sed -n 's/^Cpus_allowed_list:[[:space:]]*//p' /proc/self/status)"
-./bin/llama-bench -m "$MODEL" -p 512 -n 128 -t 4,8 -r 3 -o md "$@" | tee "$out"
+# -lm dio:用 O_DIRECT 載入,不經 page cache。預設的 mmap 會讓「page cache 裡的檔案 + repack 後的權重」
+# 兩份同時占記憶體(35B 合計約 40 GB > 33 GiB),kernel(swappiness=100、zram)就把剛 repack 好的權重
+# swap 出去,生成時再一頁頁搬回來:tg 從 12.4 掉到 8.6–9.7 且忽快忽慢(2026-09-11 實測,results/m1-cpu-baseline.md)。
+./bin/llama-bench -m "$MODEL" -p 512 -n 128 -t 4,8 -r 3 -lm dio -o md "$@" | tee "$out"
 
 # sh 沒有 pipefail,llama-bench 失敗時 tee 仍回 0,所以看產出內容判斷。
 grep -q 'tg128' "$out" || die "llama-bench 沒有產出結果(看上面的錯誤訊息)"

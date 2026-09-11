@@ -54,6 +54,7 @@
 |---|---|---|
 | RAM | MemTotal **33.0 GiB**(34,626,032 kB);MemAvailable **29.4 GiB**(兩個 spirit 服務都在跑時) | M0 實測 2026-09-11 |
 | 儲存 | `/`(otaroot)219 GB,**剩 164 GB**;`/usr` 是 overlay(ostree unlock 中,重開機會消失) | M0 實測 |
+| swap | **`/dev/zram0` 33.8 GB**(壓縮放在 RAM),**`vm.swappiness = 100`** | 2026-09-11 實測 |
 | DDR | LPDDR5-6400、96-bit,理論峰值 **76.8 GB/s** | `qcs9075-tdp90-stress/TECHNICAL.md`(2026-07) |
 | CPU | 8 核;features 有 `asimddp`(dotprod)、`fphp`/`asimdhp`(fp16),**沒有 i8mm / sve / bf16** | M0 實測 |
 | GPU | Adreno 663(`clinfo -l`) | TDP90 TECHNICAL.md |
@@ -219,8 +220,12 @@ llama-cli 遇到不合法的 UTF-8 會直接 `terminate ... common_json_error ..
 
 | 模型 | 8 核 pp512 | 8 核 tg128 | 4 核 pp512 | 4 核 tg128 |
 |---|---|---|---|---|
-| Qwen3.6-35B-A3B Q4_0 | 55.28 | **12.32** | 27.34 | 10.02 |
+| Qwen3.6-35B-A3B Q4_0 | 55.28 | **12.32**(dio:**12.55 ± 0.02**) | 27.34 | 10.02 |
 | Qwen3.5-9B Q4_0 | 待測 | 待測 | 待測 | 待測 |
+
+⚠ **載入一定要用 `-lm dio`。** 預設的 mmap 會讓 page cache 裡的檔案和 repack 後的權重同時占記憶體
+(35B 合計約 40 GB > 33 GiB),kernel 就把權重 swap 到 zram,生成時 tg 掉到 8.6–9.7 且忽快忽慢。
+上表 mmap 那列是剛好沒被 swap 的一次;診斷過程見 `results/m1-cpu-baseline.md`。`bench.sh`、`ask.sh` 已改用 dio。
 
 - [x] 35B 載入、下載 + sha256、glibc 2.43、URM escape(`cpus: 0-7`)全部通過
 - [ ] 35B 輸出品質(llama-cli 實際問答)

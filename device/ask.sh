@@ -44,7 +44,8 @@ for p in $PROMPTS; do
     # -rea off:先看不思考時的直接回答;--seed 固定,9B / 35B 才好對照。
     # -n 是生成上限:512 會把 Linux 與寫程式那兩題的回答切在半路(2026-09-11 實測),
     # 2048 在 10 tok/s 下最多約 3.5 分鐘。還不夠就在後面再帶一次 -n,後面的值優先。
-    ./bin/llama-cli -m "$MODEL" -t 8 -st -rea off -n 2048 --seed 42 --simple-io -f "$p" "$@" \
+    # -lm dio:不經 page cache 載入,避免權重被 swap 出去(原因見 bench.sh)。
+    ./bin/llama-cli -m "$MODEL" -t 8 -st -rea off -n 2048 --seed 42 --simple-io -lm dio -f "$p" "$@" \
         2>>"$log" | tee -a "$out"
 done
 
