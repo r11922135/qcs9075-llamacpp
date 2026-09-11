@@ -30,9 +30,27 @@
   短問答沒問題,長 system prompt / RAG 會很有感 —— 這是 M2(NPU)要解的。
 - **4 核的數字(tg 10.0 / pp 27.3)就是做成 systemd service 後的預設表現**(URM 把 system.slice 關在 0-3)。
 
+### 輸出品質(`ask.sh 35b`,`-rea off`,spirit 服務開著)
+
+板上原檔:`/opt/llamacpp/results/ask-35b-20260911-105229.txt`
+
+| 題目 | 結果 | 實際對話速度(Prompt / Generation) |
+|---|---|---|
+| 01 MoE 三句話 | ✅ 正確、剛好三句 | 7.6 / 7.3 t/s |
+| 02 算術 | ✅ 找回 70 元,步驟清楚 | 12.1 / 10.0 t/s |
+| 03 nproc 只有 4 | ⚠ 被 `-n 512` 切斷;已寫的 isolcpus / maxcpus / 裝置樹 / cpu online 都對,還沒寫到 cgroup cpuset(本板真正的原因) | 9.0 / 10.0 t/s |
+| 04 UTF-8 檢查函式 | ⚠ 被 `-n 512` 切斷;已寫的位元遮罩判斷正確 | 9.6 / 10.1 t/s |
+
+- 03、04 切斷是 ask.sh 當時的生成上限 `-n 512`,不是程式問題;已改成 2048,待重跑。
+- **用語偏大陸**:字是繁體,但出現「網絡」「激活」「設備樹」「進程」(台灣是網路、啟用、裝置樹、行程)。
+  產品要給台灣使用者看的話,要用 system prompt 要求台灣用語,再看改不改得掉。
+- 實際對話的生成(7.3–10.1 t/s)比 llama-bench 的 12.3 低。可能原因(未驗證):這次 spirit 服務沒停、
+  真的在做 sampling(llama-bench 不做)、context 隨生成變長。Prompt t/s 低是因為題目只有幾十個 token,
+  固定開銷占比大,不能跟 pp512 比。
+
 ### 還沒驗證
 
-- [ ] 輸出品質:bench 只量速度,輸出壞掉也照樣有數字。要用 `ask.sh` 實際問答確認。
+- [ ] 03、04 用 `-n 2048` 重跑,看完整回答。
   (第一次試的時候直接在 adb shell 打中文,Big5 位元組讓 llama-cli terminate —— 是輸入編碼問題,不是模型問題。)
 - [ ] 記憶體峰值:llama-bench 不報 RSS。
 
